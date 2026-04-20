@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Chicago Crime Risk Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --bg:#07090d;--surface:#0e1117;--card:#121924;--border:#1c2535;
+  --text:#d0dae8;--muted:#4d5f75;--accent:#3b82f6;--accent-glow:rgba(59,130,246,.15);
+  --low:#22c55e;--med:#f59e0b;--high:#ef4444;
+  --low-bg:rgba(34,197,94,.1);--med-bg:rgba(245,158,11,.1);--high-bg:rgba(239,68,68,.1);
+  --track:rgba(255,255,255,.06);--tag-bg:rgba(255,255,255,.04);
+  --shadow:rgba(0,0,0,.5);
+}
+[data-theme=light]{
+  --bg:#f4f7fb;--surface:#ffffff;--card:#ffffff;--border:#e2e8f0;
+  --text:#1e2d3d;--muted:#94a3b8;--accent:#2563eb;--accent-glow:rgba(37,99,235,.08);
+  --low:#16a34a;--med:#d97706;--high:#dc2626;
+  --low-bg:rgba(22,163,74,.08);--med-bg:rgba(217,119,6,.08);--high-bg:rgba(220,38,38,.08);
+  --track:rgba(0,0,0,.06);--tag-bg:rgba(0,0,0,.04);
+  --shadow:rgba(0,0,0,.08);
+}
+
+body{
+  background:var(--bg);color:var(--text);
+  font-family:'Sora',sans-serif;min-height:100vh;
+  transition:background .25s,color .25s
+}
+
+/* subtle dot grid */
+body::before{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:radial-gradient(rgba(59,130,246,.07) 1px,transparent 1px);
+  background-size:32px 32px
+}
+
+/* ─── HEADER ─── */
+header{
+  position:relative;z-index:10;
+  padding:32px 48px 24px;
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap
+}
+.brand{display:flex;flex-direction:column;gap:4px}
+.brand-top{display:flex;align-items:center;gap:12px}
+.brand-icon{
+  width:36px;height:36px;border-radius:9px;
+  background:var(--accent);display:flex;align-items:center;
+  justify-content:center;font-size:17px;flex-shrink:0
+}
+.brand h1{
+  font-size:1.35rem;font-weight:700;color:var(--text);letter-spacing:-.01em
+}
+.brand-sub{
+  font-size:.72rem;color:var(--muted);letter-spacing:.04em;margin-left:48px
+}
+.header-right{display:flex;align-items:center;gap:10px}
+.model-badge{
+  padding:6px 14px;border-radius:7px;border:1px solid var(--border);
+  background:var(--surface);font-family:'JetBrains Mono',monospace;
+  font-size:.7rem;color:var(--accent);letter-spacing:.04em
+}
+.theme-btn{
+  display:flex;align-items:center;gap:6px;
+  padding:7px 14px;border-radius:7px;border:1px solid var(--border);
+  background:var(--surface);color:var(--muted);cursor:pointer;
+  font-family:'Sora',sans-serif;font-size:.73rem;font-weight:500;
+  transition:all .2s
+}
+.theme-btn:hover{border-color:var(--accent);color:var(--accent)}
+
+/* ─── STAT BAR ─── */
+.stat-bar{
+  position:relative;z-index:10;
+  display:grid;grid-template-columns:repeat(5,1fr);
+  border-bottom:1px solid var(--border)
+}
+.stat{padding:16px 24px;border-right:1px solid var(--border)}
+.stat:last-child{border-right:none}
+.stat-v{
+  font-family:'JetBrains Mono',monospace;
+  font-size:1.75rem;font-weight:500;color:var(--text);line-height:1
+}
+.stat-v.low{color:var(--low)}.stat-v.med{color:var(--med)}.stat-v.high{color:var(--high)}
+.stat-k{font-size:.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-top:4px}
+
+/* ─── CHART ROW ─── */
+.chart-row{
+  position:relative;z-index:10;
+  display:grid;grid-template-columns:1fr 1fr 1fr;
+  border-bottom:1px solid var(--border)
+}
+.chart-box{padding:22px 28px;border-right:1px solid var(--border)}
+.chart-box:last-child{border-right:none}
+.chart-label{font-size:.63rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:14px}
+
+/* donut */
+.donut-wrap{display:flex;align-items:center;gap:18px}
+svg.donut{width:72px;height:72px;flex-shrink:0}
+.legend{display:flex;flex-direction:column;gap:6px}
+.leg-row{display:flex;align-items:center;gap:7px;font-size:.72rem}
+.leg-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+
+/* time bars */
+.tbars{display:flex;flex-direction:column;gap:6px}
+.tbar-row{display:flex;align-items:center;gap:8px;font-size:.68rem}
+.tbar-lbl{width:72px;color:var(--muted);flex-shrink:0}
+.tbar-track{flex:1;height:6px;background:var(--track);border-radius:3px;overflow:hidden}
+.tbar-fill{height:100%;border-radius:3px;background:var(--accent);opacity:.75}
+.tbar-n{width:20px;text-align:right;color:var(--text)}
+
+/* histogram */
+.hist{display:flex;align-items:flex-end;gap:3px;height:54px}
+.hist-col{flex:1;border-radius:2px 2px 0 0;min-height:2px;cursor:default;transition:opacity .2s}
+.hist-col:hover{opacity:1!important}
+
+/* ─── CONTROLS ─── */
+.controls{
+  position:relative;z-index:10;padding:12px 48px;
+  border-bottom:1px solid var(--border);
+  display:flex;gap:8px;align-items:center;flex-wrap:wrap
+}
+.ctrl-label{font-size:.63rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-right:2px}
+.chip{
+  padding:5px 13px;border-radius:20px;font-size:.72rem;font-weight:500;cursor:pointer;
+  border:1px solid var(--border);background:var(--surface);color:var(--muted);
+  transition:all .17s
+}
+.chip:hover{border-color:var(--accent);color:var(--accent)}
+.chip.sel-all{border-color:var(--accent);color:var(--accent);background:var(--accent-glow)}
+.chip.sel-low{border-color:var(--low);color:var(--low);background:var(--low-bg)}
+.chip.sel-med{border-color:var(--med);color:var(--med);background:var(--med-bg)}
+.chip.sel-high{border-color:var(--high);color:var(--high);background:var(--high-bg)}
+.ctrl-right{margin-left:auto;display:flex;gap:8px;align-items:center}
+select.sort-dd,input.search{
+  background:var(--surface);border:1px solid var(--border);border-radius:7px;
+  padding:6px 11px;color:var(--text);font-family:'Sora',sans-serif;
+  font-size:.72rem;outline:none;transition:border-color .2s;cursor:pointer
+}
+select.sort-dd:focus,input.search:focus{border-color:var(--accent)}
+input.search{width:210px;cursor:text}
+input.search::placeholder{color:var(--muted)}
+
+/* ─── GRID ─── */
+.grid{
+  position:relative;z-index:10;
+  padding:24px 48px 60px;
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(310px,1fr));
+  gap:14px
+}
+.no-res{
+  grid-column:1/-1;text-align:center;padding:80px;
+  color:var(--muted);font-size:.88rem
+}
+
+/* ─── CARD ─── */
+.card{
+  background:var(--card);border:1px solid var(--border);border-radius:12px;
+  overflow:hidden;cursor:default;
+  transition:transform .2s,border-color .2s,box-shadow .2s;
+  animation:rise .3s ease both
+}
+.card:hover{
+  transform:translateY(-3px);
+  border-color:var(--accent);
+  box-shadow:0 10px 28px var(--shadow)
+}
+@keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+
+.card-top{
+  padding:11px 15px 10px;border-bottom:1px solid var(--border);
+  display:flex;justify-content:space-between;align-items:center
+}
+.card-num{font-family:'JetBrains Mono',monospace;font-size:.6rem;color:var(--muted)}
+.pill{
+  font-size:.6rem;font-weight:600;padding:3px 9px;border-radius:20px;
+  text-transform:uppercase;letter-spacing:.07em
+}
+.p-LOW   {background:var(--low-bg);color:var(--low);border:1px solid var(--low)}
+.p-MEDIUM{background:var(--med-bg);color:var(--med);border:1px solid var(--med)}
+.p-HIGH  {background:var(--high-bg);color:var(--high);border:1px solid var(--high)}
+
+.card-body{padding:12px 15px}
+.area-name{
+  font-size:.92rem;font-weight:600;color:var(--text);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:6px
+}
+.tags{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px}
+.tag{
+  font-size:.6rem;padding:2px 7px;border-radius:4px;
+  background:var(--tag-bg);color:var(--muted)
+}
+.tag.t-accent{color:var(--accent);border:1px solid rgba(59,130,246,.2)}
+.tag.t-peak{background:rgba(239,68,68,.1);color:var(--high)}
+
+/* score bar */
+.score-row{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.sc-label{font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;width:36px;flex-shrink:0}
+.sc-track{flex:1;height:4px;background:var(--track);border-radius:2px;overflow:hidden}
+.sc-bar{height:100%;border-radius:2px;transition:width .5s ease}
+.b-LOW   {background:var(--low)}
+.b-MEDIUM{background:var(--med)}
+.b-HIGH  {background:var(--high)}
+.sc-num{font-family:'JetBrains Mono',monospace;font-size:.75rem;color:var(--text);width:34px;text-align:right}
+
+/* recommendation */
+.rec{
+  margin-top:8px;padding:8px 10px;border-radius:7px;
+  border-left:2px solid;font-size:.68rem;line-height:1.55
+}
+.rec.r-LOW   {background:var(--low-bg);border-color:var(--low)}
+.rec.r-MEDIUM{background:var(--med-bg);border-color:var(--med)}
+.rec.r-HIGH  {background:var(--high-bg);border-color:var(--high)}
+.rec-head{font-weight:600;font-size:.62rem;text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px}
+.rec-head.low{color:var(--low)}.rec-head.med{color:var(--med)}.rec-head.high{color:var(--high)}
+.rec-body{color:var(--text);opacity:.85}
+.rec-action{color:var(--muted);margin-top:3px;font-size:.65rem}
+
+/* meta strip */
+.meta{display:flex;gap:5px;flex-wrap:wrap;margin-top:9px}
+.meta-chip{
+  font-size:.6rem;color:var(--muted);
+  border:1px solid var(--border);border-radius:4px;padding:2px 6px
+}
+.meta-chip.coords{color:var(--accent);border-color:rgba(59,130,246,.2)}
+
+/* ─── FOOTER ─── */
+footer{
+  position:relative;z-index:10;
+  border-top:1px solid var(--border);
+  padding:18px 48px;
+  display:flex;align-items:center;justify-content:space-between;
+  font-size:.63rem;color:var(--muted);letter-spacing:.03em;flex-wrap:wrap;gap:8px
+}
+</style>
+</head>
+<body data-theme="dark">
+
+<!-- HEADER -->
+<header>
+  <div class="brand">
+    <div class="brand-top">
+      <div class="brand-icon"></div>
+      <h1>THEFT CRIME RISK PREDICTION IN URBAN COMMUNITIES</h1>
+    </div>
+    <div class="brand-sub">Chicago · Theft Risk Prediction · Integrated LSTM + ST-GCN + GBDT</div>
+  </div>
+  <div class="header-right">
+    <div class="model-badge">LSTM + ST-GCN + GBDT</div>
+    <button class="theme-btn" onclick="toggleTheme()" id="themeBtn">
+      <span id="themeIcon">☀</span>
+      <span id="themeLabel">Light Mode</span>
+    </button>
+  </div>
+</header>
+
+<!-- STATS -->
+<div class="stat-bar">
+  <div class="stat"><div class="stat-v" id="sTotal">—</div><div class="stat-k">Total Records</div></div>
+  <div class="stat"><div class="stat-v low" id="sLow">—</div><div class="stat-k">Low Risk</div></div>
+  <div class="stat"><div class="stat-v med" id="sMed">—</div><div class="stat-k">Medium Risk</div></div>
+  <div class="stat"><div class="stat-v high" id="sHigh">—</div><div class="stat-k">High Risk</div></div>
+  <div class="stat"><div class="stat-v" id="sAvg">—</div><div class="stat-k">Avg Risk Score</div></div>
+</div>
+
+<!-- CHARTS -->
+<div class="chart-row">
+  <div class="chart-box">
+    <div class="chart-label">Risk Split</div>
+    <div class="donut-wrap">
+      <svg class="donut" viewBox="0 0 36 36">
+        <circle cx="18" cy="18" r="15.9" fill="none" id="donutBase" stroke="#1c2535" stroke-width="3"/>
+        <circle id="dH" cx="18" cy="18" r="15.9" fill="none" stroke="#ef4444" stroke-width="3"
+                stroke-dasharray="0 100" stroke-dashoffset="25" style="transition:stroke-dasharray .55s"/>
+        <circle id="dM" cx="18" cy="18" r="15.9" fill="none" stroke="#f59e0b" stroke-width="3"
+                stroke-dasharray="0 100" stroke-dashoffset="25" style="transition:stroke-dasharray .55s"/>
+        <circle id="dL" cx="18" cy="18" r="15.9" fill="none" stroke="#22c55e" stroke-width="3"
+                stroke-dasharray="0 100" stroke-dashoffset="25" style="transition:stroke-dasharray .55s"/>
+      </svg>
+      <div class="legend" id="donutLegend"></div>
+    </div>
+  </div>
+  <div class="chart-box">
+    <div class="chart-label">Crimes by Time of Day</div>
+    <div class="tbars" id="timeChart"></div>
+  </div>
+  <div class="chart-box">
+    <div class="chart-label">Score Distribution</div>
+    <div class="hist" id="histChart"></div>
+  </div>
+</div>
+
+<!-- CONTROLS -->
+<div class="controls">
+  <span class="ctrl-label">Filter</span>
+  <button class="chip sel-all" onclick="setFilter('ALL',this)">All</button>
+  <button class="chip"         onclick="setFilter('LOW',this)">Low Risk</button>
+  <button class="chip"         onclick="setFilter('MEDIUM',this)">Medium Risk</button>
+  <button class="chip"         onclick="setFilter('HIGH',this)">High Risk</button>
+  <div class="ctrl-right">
+    <select class="sort-dd" id="sortSel" onchange="render()">
+      <option value="index">Default order</option>
+      <option value="score_desc">Score: highest first</option>
+      <option value="score_asc">Score: lowest first</option>
+      <option value="area">Area: A–Z</option>
+    </select>
+    <input class="search" id="searchBox" placeholder="Search area or crime type…" oninput="render()"/>
+  </div>
+</div>
+
+<!-- CARD GRID -->
+<div class="grid" id="cardGrid"></div>
+
+<!-- FOOTER -->
+<footer>
+  <span>Chicago Crime Risk Prediction · Integrated Model (LSTM + ST-GCN + GBDT)</span>
+  <span>Trained on Chicago Crimes Dataset · 77 Urban Communities</span>
+</footer>
+
+<script>
+// ── DATA ─────────────────────────────────────────────────────
+const DATA = [
+  {
+    "index": 1,
+    "area": "APARTMENT",
+    "lat": 41.864073,
+    "lon": -87.706819,
+    "crime_type": "0486",
+    "crime_cat": "General Crime",
+    "date": "2016-05-03 23:40:00",
+    "time_label": "Night",
+    "peak_warning": true,
+    "score": 25.17,
+    "risk": "MEDIUM",
+    "recommendation": "Check in on this area every couple of hours",
+    "action": "Give the nearest station a heads-up to keep watch"
+  },
+  {
+    "index": 2,
+    "area": "RESIDENCE",
+    "lat": 41.782922,
+    "lon": -87.604363,
+    "crime_type": "0486",
+    "crime_cat": "General Crime",
+    "date": "2016-05-03 21:40:00",
+    "time_label": "Night",
+    "peak_warning": true,
+    "score": 53.48,
+    "risk": "HIGH",
+    "recommendation": "Send patrol units to this spot now",
+    "action": "More cops on the beat + check the cameras ASAP"
+  },
+  {
+    "index": 3,
+    "area": "STREET",
+    "lat": 41.894908,
+    "lon": -87.758372,
+    "crime_type": "0470",
+    "crime_cat": "General Crime",
+    "date": "2016-05-03 23:31:00",
+    "time_label": "Night",
+    "peak_warning": true,
+    "score": 24.54,
+    "risk": "MEDIUM",
+    "recommendation": "Check in on this area every couple of hours",
+    "action": "Give the nearest station a heads-up to keep watch"
+  },
+  {
+    "index": 4,
+    "area": "SIDEWALK",
+    "lat": 41.885687,
+    "lon": -87.749516,
+    "crime_type": "0460",
+    "crime_cat": "General Crime",
+    "date": "2016-05-03 22:10:00",
+    "time_label": "Night",
+    "peak_warning": true,
+    "score": 24.4,
+    "risk": "MEDIUM",
+    "recommendation": "Check in on this area every couple of hours",
+    "action": "Give the nearest station a heads-up to keep watch"
+  },
+  {
+    "index": 5,
+    "area": "RESIDENCE",
+    "lat": 41.886297,
+    "lon": -87.761751,
+    "crime_type": "0820",
+    "crime_cat": "General Crime",
+    "date": "2016-05-03 22:00:00",
+    "time_label": "Night",
+    "peak_warning": true,
+    "score": 23.56,
+    "risk": "MEDIUM",
+    "recommendation": "Check in on this area every couple of hours",
+    "action": "Give the nearest station a heads-up to keep watch"
+  },
+  {
+    "index": 6,
+    "area": "STREET",
+    "lat": 41.745354,
+    "lon": -87.603799,
+    "crime_type": "041A",
+    "crime_cat": "General Crime",
+    "date": "2016-05-03 22:35:00",
+    "time_label": "Night",
+    "peak_warning": true,
+    "score": 56.88,
+    "risk": "HIGH",
+    "recommendation": "Send patrol units to this spot now",
+    "action": "More cops on the beat + check the cameras ASAP"
+  },
+  {
+    "index": 7,
+    "area": "CHA HALLWAY/STAIRWELL/ELEVATOR",
+    "lat": 41.844024,
+    "lon": -87.626923,
+    "crime_type": "0460",
+    "crime_cat": "General Crime",
+    "date": "2016-05-03 22:30:00",
+    "time_label": "Night",
+    "peak_warning": true,
+    "score": 31.9,
+    "risk": "MEDIUM",
+    "recommendation": "Check in on this area every couple of hours",
+    "action": "Give the nearest station a heads-up to keep watch"
+  },
+  {
+    "index": 8,
+    "area": "RESIDENCE PORCH/HALLWAY",
+    "lat": 41.811134,
+    "lon": -87.620741,
+    "crime_type": "0460",
+    "crime_cat": "General Crime",
+    "date": "2016-05-03 21:30:00",
+    "time_label": "Night",
+    "peak_warning": true,
+    "score": 45.55,
+    "risk": "HIGH",
+    "recommendation": "Send patrol units to this spot now",
+    "action": "More cops on the beat + check the cameras ASAP"
+  },
+  {
+    "index": 9,
+    "area": "SIDEWALK",
+    "lat": 41.998131,
+    "lon": -87.665814,
+    "crime_type": "0460",
+    "crime_cat": "General Crime",
+    "date": "2016-05-03 16:00:00",
+    "time_label": "Afternoon",
+    "peak_warning": false,
+    "score": 2.45,
+    "risk": "LOW",
+    "recommendation": "Regular patrol is enough for now",
+    "action": "No action needed right now"
+  },
+  {
+    "index": 10,
+    "area": "STREET",
+    "lat": 41.768097,
+    "lon": -87.663879,
+    "crime_type": "0486",
+    "crime_cat": "General Crime",
+    "date": "2016-05-03 22:30:00",
+    "time_label": "Night",
+    "peak_warning": true,
+    "score": 63.84,
+    "risk": "HIGH",
+    "recommendation": "Send patrol units to this spot now",
+    "action": "More cops on the beat + check the cameras ASAP"
+  },
+  {
+    "index": 11,
+    "area": "VEHICLE NON-COMMERCIAL",
+    "lat": 41.761733,
+    "lon": -87.55831,
+    "crime_type": "143A",
+    "crime_cat": "General Crime",
+    "date": "2016-05-03 21:44:00",
+    "time_label": "Night",
+    "peak_warning": true,
+    "score": 59.82,
+    "risk": "HIGH",
+    "recommendation": "Send patrol units to this spot now",
+    "action": "More cops on the beat + check the cameras ASAP"
+  },
+  {
+    "index": 12,
+    "area": "SIDEWALK",
+    "lat": 41.893027,
+    "lon": -87.626751,
+    "crime_type": "0486",
+    "crime_cat": "General Crime",
+    "date": "2016-05-03 23:11:00",
+    "time_label": "Night",
+    "peak_warning": true,
+    "score": 11.5,
+    "risk": "LOW",
+    "recommendation": "Regular patrol is enough for now",
+    "action": "No action needed right now"
+  },
+  {
+    "index": 13,
+    "area": "OTHER",
+    "lat": 41.877812,
+    "lon": -87.655758,
+    "crime_type": "0890",
+    "crime_cat": "General Crime",
+    "date": "2016-05-03 17:30:00",
+    "time_label": "Evening",
+    "peak_warning": false,
+    "score": 26.81,
+    "risk": "MEDIUM",
+    "recommendation": "Check in on this area every couple of hours",
+    "action": "Give the nearest station a heads-up to keep watch"
+  },
+  {
+    "index": 14,
+    "area": "STREET",
+    "lat": 41.843017,
+    "lon": -87.617227,
+    "crime_type": "0820",
+    "crime_cat": "General Crime",
+    "date": "2016-05-03 09:00:00",
+    "time_label": "Morning",
+    "peak_warning": false,
+    "score": 31.53,
+    "risk": "MEDIUM",
+    "recommendation": "Check in on this area every couple of hours",
+    "action": "Give the nearest station a heads-up to keep watch"
+  },
+  {
+    "index": 15,
+    "area": "STREET",
+    "lat": 41.910901,
+    "lon": -87.686019,
+    "crime_type": "0810",
+    "crime_cat": "General Crime",
+    "date": "2016-05-03 22:08:00",
+    "time_label": "Night",
+    "peak_warning": true,
+    "score": 23.36,
+    "risk": "MEDIUM",
+    "recommendation": "Check in on this area every couple of hours",
+    "action": "Give the nearest station a heads-up to keep watch"
+  }
+];
+
+// ── THEME ─────────────────────────────────────────────────────
+function toggleTheme() {
+  const dark = document.body.getAttribute('data-theme') === 'dark';
+  document.body.setAttribute('data-theme', dark ? 'light' : 'dark');
+  document.getElementById('themeIcon').textContent  = dark ? '🌙' : '☀';
+  document.getElementById('themeLabel').textContent = dark ? 'Dark Mode' : 'Light Mode';
+  document.getElementById('donutBase').setAttribute('stroke', dark ? '#e2e8f0' : '#1c2535');
+  render();
+}
+
+// ── FILTER ────────────────────────────────────────────────────
+let activeFilter = 'ALL';
+function setFilter(f, el) {
+  activeFilter = f;
+  document.querySelectorAll('.chip').forEach(c => c.className = 'chip');
+  el.className = 'chip ' + {ALL:'sel-all',LOW:'sel-low',MEDIUM:'sel-med',HIGH:'sel-high'}[f];
+  render();
+}
+
+// ── CHARTS ────────────────────────────────────────────────────
+function buildCharts(data) {
+  const n     = data.length || 1;
+  const low   = data.filter(d => d.risk === 'LOW').length;
+  const med   = data.filter(d => d.risk === 'MEDIUM').length;
+  const high  = data.filter(d => d.risk === 'HIGH').length;
+  const avg   = data.length
+    ? (data.reduce((s,d) => s + d.score, 0) / data.length).toFixed(1) : '—';
+
+  document.getElementById('sTotal').textContent = data.length;
+  document.getElementById('sLow').textContent   = low;
+  document.getElementById('sMed').textContent   = med;
+  document.getElementById('sHigh').textContent  = high;
+  document.getElementById('sAvg').textContent   = avg;
+
+  // Donut arcs
+  const hp = high/n*100, mp = med/n*100, lp = low/n*100;
+  let off = 25;
+  function setArc(id, pct) {
+    const el = document.getElementById(id);
+    el.setAttribute('stroke-dasharray', pct.toFixed(1) + ' ' + (100 - pct).toFixed(1));
+    el.setAttribute('stroke-dashoffset', off);
+    off -= pct;
+  }
+  setArc('dH', hp); setArc('dM', mp); setArc('dL', lp);
+
+  document.getElementById('donutLegend').innerHTML = [
+    ['var(--high)', 'High',   high, hp],
+    ['var(--med)',  'Medium', med,  mp],
+    ['var(--low)',  'Low',    low,  lp],
+  ].map(([c, l, count, pct]) =>
+    `<div class="leg-row">
+      <div class="leg-dot" style="background:${c}"></div>
+      <span style="color:${c}">${l}</span>
+      <span style="color:var(--muted)">${count} (${pct.toFixed(0)}%)</span>
+    </div>`
+  ).join('');
+
+  // Time bars
+  const times = {'Late Night':0,'Morning':0,'Afternoon':0,'Evening':0,'Night':0};
+  data.forEach(d => { if (d.time_label in times) times[d.time_label]++; });
+  const maxT = Math.max(...Object.values(times), 1);
+  document.getElementById('timeChart').innerHTML = Object.entries(times)
+    .map(([k, v]) =>
+      `<div class="tbar-row">
+        <div class="tbar-lbl">${k}</div>
+        <div class="tbar-track">
+          <div class="tbar-fill" style="width:${(v/maxT*100).toFixed(0)}%"></div>
+        </div>
+        <div class="tbar-n">${v}</div>
+      </div>`
+    ).join('');
+
+  // Histogram
+  const buckets = Array(10).fill(0);
+  data.forEach(d => { buckets[Math.min(Math.floor(d.score / 10), 9)]++; });
+  const maxB = Math.max(...buckets, 1);
+  const cols  = ['#22c55e','#4ade80','#84cc16','#eab308','#f59e0b',
+                  '#f97316','#ef4444','#dc2626','#b91c1c','#991b1b'];
+  document.getElementById('histChart').innerHTML = buckets
+    .map((b, i) =>
+      `<div class="hist-col"
+            style="height:${(b/maxB*100).toFixed(0)}%;background:${cols[i]};opacity:.75"
+            title="Score ${i*10}–${i*10+9}: ${b} record(s)">
+      </div>`
+    ).join('');
+}
+
+// ── RENDER CARDS ──────────────────────────────────────────────
+function render() {
+  const q    = document.getElementById('searchBox').value.toLowerCase();
+  const srt  = document.getElementById('sortSel').value;
+  const grid = document.getElementById('cardGrid');
+
+  let rows = DATA.filter(d => {
+    const flt = activeFilter === 'ALL' || d.risk === activeFilter;
+    const srh = !q || d.area.toLowerCase().includes(q)
+                   || d.crime_type.toLowerCase().includes(q);
+    return flt && srh;
+  });
+
+  if (srt === 'score_desc') rows.sort((a, b) => b.score - a.score);
+  else if (srt === 'score_asc')  rows.sort((a, b) => a.score - b.score);
+  else if (srt === 'area')       rows.sort((a, b) => a.area.localeCompare(b.area));
+
+  buildCharts(rows);
+
+  if (!rows.length) {
+    grid.innerHTML = '<div class="no-res">Nothing matches your filter or search.</div>';
+    return;
+  }
+
+  const maxScore = Math.max(...DATA.map(d => d.score), 100);
+
+  grid.innerHTML = rows.map((d, idx) => {
+    const pct  = Math.min((d.score / maxScore) * 100, 100).toFixed(1);
+    const peak = d.peak_warning
+      ? '<span class="tag t-peak">⚠ Peak Hour</span>' : '';
+    const hlc  = {HIGH:'high', MEDIUM:'med', LOW:'low'}[d.risk];
+
+    return `<div class="card" style="animation-delay:${idx * 20}ms">
+      <div class="card-top">
+        <span class="card-num">#${String(d.index).padStart(3,'0')}</span>
+        <span class="pill p-${d.risk}">${d.risk} RISK</span>
+      </div>
+      <div class="card-body">
+        <div class="area-name">${d.area}</div>
+        <div class="tags">
+          <span class="tag">${d.crime_type}</span>
+          <span class="tag">${d.crime_cat}</span>
+          <span class="tag t-accent">${d.time_label}</span>
+          ${peak}
+        </div>
+        <div class="score-row">
+          <div class="sc-label">Score</div>
+          <div class="sc-track">
+            <div class="sc-bar b-${d.risk}" style="width:${pct}%"></div>
+          </div>
+          <div class="sc-num">${d.score}</div>
+        </div>
+        <div class="rec r-${d.risk}">
+          <div class="rec-head ${hlc}">${d.risk === 'HIGH' ? 'Action needed' : d.risk === 'MEDIUM' ? 'Keep an eye out' : 'All clear'}</div>
+          <div class="rec-body">${d.recommendation}</div>
+          <div class="rec-action">${d.action}</div>
+        </div>
+        <div class="meta">
+          <span class="meta-chip coords">📍 ${d.lat}, ${d.lon}</span>
+          <span class="meta-chip">${d.date.slice(0,10)}</span>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+render();
+</script>
+</body>
+</html>
